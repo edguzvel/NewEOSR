@@ -1,8 +1,11 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Dapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using System;
 using System.Data;
-using System.Security.AccessControl;
+using System.Threading.Tasks;
 
 namespace NewEOSR.Controllers
 {
@@ -10,7 +13,8 @@ namespace NewEOSR.Controllers
     [ApiController]
     public class ValuesController : ControllerBase
     {
-        private IConfiguration _configuration;
+        private readonly IConfiguration _configuration;
+
         public ValuesController(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -18,161 +22,96 @@ namespace NewEOSR.Controllers
 
         [HttpGet]
         [Route("GetUsers")]
-        public JsonResult GetUsers()
+        public async Task<IActionResult> GetUsers()
         {
-            string query = "select * from dbo.tblUserss";
-            DataTable table = new DataTable();
-            string sqlDataSource = _configuration.GetConnectionString("DefaultConnection");
-            SqlDataReader myReader;
-            using(SqlConnection myCon=new SqlConnection(sqlDataSource))
+            string query = "SELECT * FROM dbo.tblUsers";
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
-                myCon.Open();
-                using(SqlCommand myCommand = new SqlCommand(query, myCon))
-                {
-                    myReader = myCommand.ExecuteReader();
-                    table.Load(myReader);
-                    myReader.Close();
-                    myCon.Close();
-                }
+                var users = await connection.QueryAsync<dynamic>(query);
+                return Ok(users);
             }
-            return new JsonResult(table);
         }
-        
+
         [HttpPost]
         [Route("AddUsers")]
-        public JsonResult AddUsers([FromForm] string newUserss)
+        public async Task<IActionResult> AddUsers([FromForm] string newUsers)
         {
-            string query = "insert into dbo.tblUserss values(@newUserss)";
-            DataTable table = new DataTable();
-            string sqlDataSource = _configuration.GetConnectionString("DefaultConnection");
-            SqlDataReader myReader;
-            using (SqlConnection myCon = new SqlConnection(sqlDataSource))
+            string query = "INSERT INTO dbo.tblUsers VALUES (@newUsers)";
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
-                myCon.Open();
-                using (SqlCommand myCommand = new SqlCommand(query, myCon))
-                {
-                    myCommand.Parameters.AddWithValue("@newUserss", newUserss);
-                    myReader = myCommand.ExecuteReader();
-                    table.Load(myReader);
-                    myReader.Close();
-                    myCon.Close();
-                }
+                var affectedRows = await connection.ExecuteAsync(query, new { newUsers });
+                return new JsonResult($"Added Successfully. Rows affected: {affectedRows}");
             }
-            return new JsonResult("Added Successfully");
         }
 
         [HttpDelete]
         [Route("DeleteUsers")]
-        public JsonResult DeleteUsers(int id)
+        public async Task<IActionResult> DeleteUsers(int id)
         {
-            string query = "delete from dbo.tblUserss where id=@id";
-            DataTable table = new DataTable();
-            string sqlDataSource = _configuration.GetConnectionString("DefaultConnection");
-            SqlDataReader myReader;
-            using (SqlConnection myCon = new SqlConnection(sqlDataSource))
+            string query = "DELETE FROM dbo.tblUsers WHERE id = @id";
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
-                myCon.Open();
-                using (SqlCommand myCommand = new SqlCommand(query, myCon))
-                {
-                    myCommand.Parameters.AddWithValue("@id", "id");
-                    myReader = myCommand.ExecuteReader();
-                    table.Load(myReader);
-                    myReader.Close();
-                    myCon.Close();
-                }
+                var affectedRows = await connection.ExecuteAsync(query, new { id });
+                return new JsonResult($"Deleted Successfully. Rows affected: {affectedRows}");
             }
-            return new JsonResult("Deleted Successfully");
         }
 
         [HttpPost]
         [Route("SubmitReport")]
-        public JsonResult SubmitReport([FromBody] ReportModel report)
+        public async Task<IActionResult> SubmitReport([FromBody] ReportModel report)
         {
             string query = @"
-            INSERT INTO Reports (userId, reportDate, reportContent) 
-            VALUES (@userId, @reportDate, @reportContent)";
-        
-            DataTable table = new DataTable();
-            string sqlDataSource = _configuration.GetConnectionString("DefaultConnection");
-            SqlDataReader myReader;
-            using (SqlConnection myCon = new SqlConnection(sqlDataSource))
-            {
-                myCon.Open();
-                using (SqlCommand myCommand = new SqlCommand(query, myCon))
-                {
-                    myCommand.Parameters.AddWithValue("@userId", report.UserId);
-                    myCommand.Parameters.AddWithValue("@reportDate", report.ReportDate);
-                    myCommand.Parameters.AddWithValue("@reportContent", report.ReportContent);
+INSERT INTO tblReports (userID, reportDate, reportContent) 
+VALUES (@UserID, @ReportDate, @ReportContent)";
 
-                    myReader = myCommand.ExecuteReader();
-                    table.Load(myReader);
-                    
-                    myReader.Close();
-                    myCon.Close();
-                }
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
+            {
+                var affectedRows = await connection.ExecuteAsync(query, report);
+                return new JsonResult($"Report Submitted Successfully. Rows affected: {affectedRows}");
             }
-            return new JsonResult("Report Submitted Successfully");
         }
 
         [HttpGet]
         [Route("GetReportsByUser")]
-        public JsonResult GetReportsByUser(int userId)
+        public async Task<IActionResult> GetReportsByUser(int userId)
         {
-            string query = @"
-                SELECT * FROM Reports 
-                WHERE userId = @userId";
-                
-            DataTable table = new DataTable();
-            string sqlDataSource = _configuration.GetConnectionString("DefaultConnection");
-            SqlDataReader myReader;
-            using (SqlConnection myCon = new SqlConnection(sqlDataSource))
+            string query = "SELECT * FROM tblReports WHERE userId = @userId";
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
-                myCon.Open();
-                using (SqlCommand myCommand = new SqlCommand(query, myCon))
-                {
-                    myCommand.Parameters.AddWithValue("@userId", userId);
-                    myReader = myCommand.ExecuteReader();
-                    table.Load(myReader); 
-                    myReader.Close();
-                    myCon.Close();
-                }
+                var reports = await connection.QueryAsync<dynamic>(query, new { userId });
+                return Ok(reports);
             }
-            return new JsonResult(table);
         }
 
         [HttpGet]
         [Route("GetUserById")]
-        public JsonResult GetUserById(int userId)
+        public async Task<IActionResult> GetUserById(int userId)
         {
-            string query = "SELECT * FROM dbo.tblUserss WHERE id = @userId";
-            DataTable table = new DataTable();
-            string sqlDataSource = _configuration.GetConnectionString("DefaultConnection");
-            SqlDataReader myReader;
-            using(SqlConnection myCon=new SqlConnection(sqlDataSource))
+            string query = "SELECT * FROM dbo.tblUsers WHERE userID = @userId";
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
-                myCon.Open();
-                using(SqlCommand myCommand = new SqlCommand(query, myCon))
-                {
-                    myCommand.Parameters.AddWithValue("@userId", userId);
-                    myReader = myCommand.ExecuteReader();
-                    table.Load(myReader);
-                    myReader.Close();
-                    myCon.Close();
-                }
+                var user = await connection.QueryAsync<dynamic>(query, new { userId });
+                return Ok(user);
             }
-            return new JsonResult(table);
         }
 
+        [HttpGet]
+        [Route("GetAllReports")]
+        public async Task<IActionResult> GetAllReports()
+        {
+            string query = "SELECT * FROM tblReports";
+            using (var connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
+            {
+                var reports = await connection.QueryAsync<dynamic>(query);
+                return Ok(reports);
+            }
+        }
 
-
-public class ReportModel
-{
-    public int UserId { get; set; }
-    public DateTime ReportDate { get; set; }
-    public string ReportContent { get; set; }
-}
-
-
-        
+        public class ReportModel
+        {
+            public int UserID { get; set; }
+            public DateTime ReportDate { get; set; }
+            public string ReportContent { get; set; }
+        }
     }
 }
